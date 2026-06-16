@@ -46,14 +46,16 @@ async def query_rag(
 
 
 @chat_router.get("/session/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: str, user_id: str = Depends(get_current_user_id), router_service: ChatService = Depends(get_router_service)):
+async def get_session(session_id: str, user_id: str = Depends(get_current_user_id),
+                      router_service: ChatService = Depends(get_router_service)):
     """获取会话信息，使用user_id验证"""
     history = await router_service.handle_get_session(session_id, user_id)
     return success_response(data=SessionResponse(session_id=session_id, history=history))
 
 
 @chat_router.delete("/session/{session_id}")
-async def delete_session(session_id: str, user_id: str = Depends(get_current_user_id), router_service: ChatService = Depends(get_router_service)):
+async def delete_session(session_id: str, user_id: str = Depends(get_current_user_id),
+                         router_service: ChatService = Depends(get_router_service)):
     """删除会话"""
     await router_service.handle_delete_session(session_id, user_id)
     return success_response(message=f"Session {session_id} deleted successfully")
@@ -68,9 +70,9 @@ async def get_all_sessions(router_service: ChatService = Depends(get_router_serv
 
 @chat_router.get("/sessions/{user_id}")
 async def get_user_sessions(
-    user_id: str,
-    current_user_id: str = Depends(get_current_user_id),
-    router_service: ChatService = Depends(get_router_service),
+        user_id: str,
+        current_user_id: str = Depends(get_current_user_id),
+        router_service: ChatService = Depends(get_router_service),
 ):
     """获取用户所有会话ID"""
     session_ids = await router_service.handle_get_user_sessions(user_id, current_user_id)

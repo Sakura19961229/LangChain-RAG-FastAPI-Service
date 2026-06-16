@@ -25,6 +25,7 @@ load_dotenv()
 
 app = FastAPI()
 
+
 # 集成限流中间件（暂时注释掉，以免在调试阶段干扰正常请求）
 # RateLimitMiddleware 基于令牌桶实现，每 60 秒允许 100 个请求
 # 正式部署时可根据接口负载调整限流策略
@@ -39,6 +40,7 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(round(process_time, 4))
     return response
 
+
 # 集成API路由
 app.include_router(chat_router)
 app.include_router(knowledge_router)
@@ -49,15 +51,12 @@ app.include_router(note_router)
 app.include_router(note_template_router)
 app.include_router(review_router)
 
-
-
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # 允许访问的源
-    allow_credentials=True, # 允许携带cookie
-    allow_methods=["*"], # 允许的请求方法
-    allow_headers=["*"], # 允许的请求头
+    allow_origins=["*"],  # 允许访问的源
+    allow_credentials=True,  # 允许携带cookie
+    allow_methods=["*"],  # 允许的请求方法
+    allow_headers=["*"],  # 允许的请求头
 )
 
 # 挂载媒体文件目录（头像等上传文件）
@@ -67,6 +66,7 @@ app.mount("/media", StaticFiles(directory=media_dir), name="media")
 
 # 注册异常处理函数
 register_exception_handlers(app)
+
 
 @app.get("/")
 async def root():
@@ -99,6 +99,7 @@ async def startup_event():
     # 检查并重排序模型（在后台异步加载）
     await init_manager.start()
     logger.info("部分资源正在初始化（模型加载、ChromaDB初始化等将在后台继续加载）")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

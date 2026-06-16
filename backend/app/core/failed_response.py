@@ -29,6 +29,7 @@ settings = Settings()
 # 生产环境强制关闭 DEBUG_MODE，双保险防止泄露
 DEBUG_MODE = settings.DEBUG_MODE if settings.ENV != "prod" else False
 
+
 def setup_logger():
     """初始化项目日志器"""
     logger = logging.getLogger("app")
@@ -61,6 +62,7 @@ class BusinessException(Exception):
         if user_quota <= 0:
             raise BusinessException(code=4001, message="错误")
     """
+
     def __init__(self, code: int = 400, message: str = "出现错误"):
         self.code = code
         self.message = message
@@ -92,6 +94,7 @@ def mask_sensitive_info(text: str) -> str:
         masked_text = re.sub(pattern, "***", masked_text)
 
     return masked_text
+
 
 async def business_exception_handler(request: Request, exc: BusinessException):
     """处理自定义业务异常（业务逻辑主动抛出）"""

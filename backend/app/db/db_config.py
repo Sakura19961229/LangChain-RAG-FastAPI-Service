@@ -20,9 +20,9 @@ ASYNC_DATABSE_URL = (
 # 创建异步引擎
 async_engine = create_async_engine(
     ASYNC_DATABSE_URL,
-    pool_size=10, # 连接池中保持的持久连接数
-    max_overflow=20, # 连接池中允许创建的额外连接数
-    echo=False # 输出sql日志
+    pool_size=10,  # 连接池中保持的持久连接数
+    max_overflow=20,  # 连接池中允许创建的额外连接数
+    echo=False  # 输出sql日志
 )
 
 # 创建异步会话工厂
@@ -54,6 +54,7 @@ def _get_mysql_type_ddl(col):
 
 async def _migrate_columns(conn):
     """检查所有已注册表，自动补全缺失的列。"""
+
     def _check(sync_conn):
         inspector = inspect(sync_conn)
         existing_tables = inspector.get_table_names()
@@ -71,6 +72,7 @@ async def _migrate_columns(conn):
                     sql = f"ALTER TABLE {table.name} ADD COLUMN {col.name} {ddl}{nullable}{default}"
                     print(f"[migrate] {sql}")
                     sync_conn.execute(text(sql))
+
     await conn.run_sync(_check)
 
 
@@ -85,6 +87,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_columns(conn)
 
+
 # 依赖项
 async def get_db():
     async with AsyncSessionLocal() as session:
@@ -98,8 +101,6 @@ async def get_db():
 
         finally:
             await session.close()
-
-
 
 
 async def seed_test_user():
