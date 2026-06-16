@@ -99,7 +99,11 @@ ehthumbs_vista.db
 .claude/
 .cursor
 skills-lock.json
+CLAUDE.md
 
 # CodeGraph index
 .codegraph/
+
+# 个人学习笔记
+notes/
 
