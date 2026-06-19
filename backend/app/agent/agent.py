@@ -249,6 +249,7 @@ async def get_agent_response(
             "steps": []
         }
 
+
 @traceable
 async def get_agent_stream_response(
         query: str,

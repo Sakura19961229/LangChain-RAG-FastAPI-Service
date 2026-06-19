@@ -107,6 +107,7 @@ class ChatModelFactory(BaseModelFactory):
 
 class EmbedModelFactory(BaseModelFactory):
     """嵌入模型工厂 - 支持Ollama和阿里云百炼"""
+
     def generator(self) -> Embeddings | BaseChatModel | None:
         """根据EMBED_MODEL_TYPE生成对应的嵌入模型"""
         embed_type = os.getenv("EMBED_MODEL_TYPE", "OLLAMA").upper()
@@ -190,6 +191,7 @@ class VisionModelFactory(BaseModelFactory):
 
 class RerankerModelFactory(BaseModelFactory):
     """重排序模型工厂 - 已废弃，使用CrossEncoder模型"""
+
     def generator(self) -> Embeddings | BaseChatModel | None:
         """生成模型"""
         return None

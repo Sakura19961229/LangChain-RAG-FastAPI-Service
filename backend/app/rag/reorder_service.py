@@ -27,7 +27,8 @@ def check_and_download_reranker_model() -> None:
     from modelscope import snapshot_download
     from tqdm import tqdm
 
-    LOCAL_MODEL_PATH = os.getenv("RERANKER_MODEL_PATH", os.path.join(os.path.expanduser("~"), ".cache", "modelscope", "bge-reranker-v2-m3"))
+    LOCAL_MODEL_PATH = os.getenv("RERANKER_MODEL_PATH",
+                                 os.path.join(os.path.expanduser("~"), ".cache", "modelscope", "bge-reranker-v2-m3"))
     MODELSCOPE_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 
     try:
@@ -61,7 +62,9 @@ class ReorderService:
     def __init__(self):
         import torch
 
-        self.LOCAL_MODEL_PATH = os.getenv("RERANKER_MODEL_PATH", os.path.join(os.path.expanduser("~"), ".cache", "modelscope", "bge-reranker-v2-m3"))
+        self.LOCAL_MODEL_PATH = os.getenv("RERANKER_MODEL_PATH",
+                                          os.path.join(os.path.expanduser("~"), ".cache", "modelscope",
+                                                       "bge-reranker-v2-m3"))
         self.MODELSCOPE_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._model = None

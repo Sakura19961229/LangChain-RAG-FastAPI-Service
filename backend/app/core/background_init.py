@@ -28,6 +28,8 @@ class _BackgroundInitManager:
         self.note_service = None
         self.reorder_service = None
 
+        logger.debug("🔄 启动后台初始化管理器")
+
     async def start(self):
         """启动后台初始化（不阻塞主事件循环）"""
         if self._started:

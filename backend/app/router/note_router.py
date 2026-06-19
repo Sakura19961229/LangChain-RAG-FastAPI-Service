@@ -36,10 +36,10 @@ note_router.dependencies = [Depends(ensure_note_service)]
 
 @note_router.post("/create")
 async def create_note(
-    payload: NoteCreate,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+        payload: NoteCreate,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=10, window=60)),
 ):
     """
     创建笔记：
@@ -53,13 +53,13 @@ async def create_note(
 
 @note_router.get("/list")
 async def list_notes(
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    category: str = Query(None),
-    tag: str = Query(None),
-    sort_by: str = Query("updated_at", pattern="^(updated_at|created_at|title)$"),
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        category: str = Query(None),
+        tag: str = Query(None),
+        sort_by: str = Query("updated_at", pattern="^(updated_at|created_at|title)$"),
 ):
     """
     笔记列表：分页查询，支持按分类筛选和排序。tag 筛选在内存层完成。
@@ -70,9 +70,9 @@ async def list_notes(
 
 @note_router.get("/search")
 async def search_notes(
-    q: str = Query(..., description="搜索关键词"),
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        q: str = Query(..., description="搜索关键词"),
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     全文语义搜索：走 ChromaDB notes_collection 向量检索，
@@ -84,10 +84,10 @@ async def search_notes(
 
 @note_router.post("/batch/delete")
 async def batch_delete_notes(
-    payload: BatchIdsRequest,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+        payload: BatchIdsRequest,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=10, window=60)),
 ):
     """
     批量删除笔记：按 ID 列表删除笔记及其向量。
@@ -98,10 +98,10 @@ async def batch_delete_notes(
 
 @note_router.post("/batch/download")
 async def batch_download_notes(
-    payload: BatchIdsRequest,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=5, window=60)),
+        payload: BatchIdsRequest,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=5, window=60)),
 ):
     """
     批量下载笔记为 ZIP 压缩包（内含 .md 文件）。
@@ -123,10 +123,10 @@ async def batch_download_notes(
 
 @note_router.put("/batch/category")
 async def batch_update_category(
-    payload: BatchCategoryRequest,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+        payload: BatchCategoryRequest,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=10, window=60)),
 ):
     """
     批量更新笔记分类。
@@ -137,10 +137,10 @@ async def batch_update_category(
 
 @note_router.put("/batch/pin")
 async def batch_pin_notes(
-    payload: BatchPinRequest,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+        payload: BatchPinRequest,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=10, window=60)),
 ):
     """
     批量置顶/取消置顶笔记。
@@ -151,8 +151,8 @@ async def batch_pin_notes(
 
 @note_router.get("/stats")
 async def get_stats(
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     获取用户笔记分类统计。
@@ -164,10 +164,10 @@ async def get_stats(
 
 @note_router.delete("/category/{category}")
 async def delete_category(
-    category: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=5, window=60)),
+        category: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=5, window=60)),
 ):
     """
     删除某个分类及其下所有笔记。
@@ -184,8 +184,8 @@ class AutocompleteRequest(BaseModel):
 
 @note_router.post("/autocomplete")
 async def autocomplete(
-    payload: AutocompleteRequest,
-    user_id: str = Depends(get_current_user_id),
+        payload: AutocompleteRequest,
+        user_id: str = Depends(get_current_user_id),
 ):
     """
     AI 内联补全。基于光标前上下文，调用本地 Ollama qwen3:0.8b 快速返回续写文本。
@@ -203,9 +203,9 @@ class AssistRequest(BaseModel):
 
 @note_router.post("/assist/stream")
 async def assist_stream(
-    payload: AssistRequest,
-    user_id: str = Depends(get_current_user_id),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+        payload: AssistRequest,
+        user_id: str = Depends(get_current_user_id),
+        _: None = Depends(rate_limit(limit=10, window=60)),
 ):
     """
     AI 写作辅助 SSE 流式输出。支持三种模式：
@@ -225,11 +225,11 @@ async def assist_stream(
 
 @note_router.put("/{note_id}")
 async def update_note(
-    note_id: str,
-    payload: NoteUpdate,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+        note_id: str,
+        payload: NoteUpdate,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=10, window=60)),
 ):
     """
     更新笔记：修改 title/content，content 变更时同步更新 ChromaDB 向量。
@@ -242,9 +242,9 @@ async def update_note(
 
 @note_router.put("/{note_id}/pin")
 async def toggle_pin(
-    note_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        note_id: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     切换笔记置顶状态。
@@ -259,10 +259,10 @@ async def toggle_pin(
 
 @note_router.delete("/{note_id}")
 async def delete_note(
-    note_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+        note_id: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
+        _: None = Depends(rate_limit(limit=10, window=60)),
 ):
     """
     删除笔记：联删 MySQL 记录、ChromaDB 向量、以及级联的 review_records。
@@ -275,9 +275,9 @@ async def delete_note(
 
 @note_router.get("/{note_id}")
 async def get_note(
-    note_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        note_id: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     获取笔记详情。
@@ -290,9 +290,9 @@ async def get_note(
 
 @note_router.post("/{note_id}/auto-tag")
 async def regenerate_tags(
-    note_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        note_id: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     手动触发重新生成标签。
@@ -308,9 +308,9 @@ async def regenerate_tags(
 
 @note_router.get("/{note_id}/related")
 async def get_related_notes(
-    note_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        note_id: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     获取当前笔记的语义相似笔记和知识库文档（Top 3），
@@ -322,9 +322,9 @@ async def get_related_notes(
 
 @note_router.get("/{note_id}/export")
 async def export_note(
-    note_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        note_id: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     导出单篇笔记为 Markdown 格式纯文本。
@@ -337,9 +337,9 @@ async def export_note(
 
 @note_router.get("/{note_id}/download")
 async def download_note(
-    note_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
+        note_id: str,
+        user_id: str = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db),
 ):
     """
     下载笔记为 Markdown 文件（浏览器触发下载）。

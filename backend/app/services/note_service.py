@@ -124,7 +124,8 @@ class NoteService:
 
         return self._doc_to_response(note)
 
-    async def update_note(self, db: AsyncSession, note_id: str, user_id: str, payload: NoteUpdate) -> NoteResponse | None:
+    async def update_note(self, db: AsyncSession, note_id: str, user_id: str,
+                          payload: NoteUpdate) -> NoteResponse | None:
         """
         更新笔记：
         1. 更新 MySQL 中的 title/content/category/tags
@@ -211,14 +212,14 @@ class NoteService:
         return self._doc_to_response(note)
 
     async def list_notes(
-        self,
-        db: AsyncSession,
-        user_id: str,
-        page: int = 1,
-        page_size: int = 20,
-        category: str | None = None,
-        tag: str | None = None,
-        sort_by: str = "updated_at",
+            self,
+            db: AsyncSession,
+            user_id: str,
+            page: int = 1,
+            page_size: int = 20,
+            category: str | None = None,
+            tag: str | None = None,
+            sort_by: str = "updated_at",
     ) -> tuple[list[NoteResponse], int]:
         """
         分页查询笔记列表，支持按分类筛选和排序。tag 筛选为内存过滤。
@@ -295,11 +296,11 @@ class NoteService:
         return sorted_notes
 
     async def get_related_notes(
-        self,
-        db: AsyncSession,
-        note_id: str,
-        user_id: str,
-        top_k: int = 3,
+            self,
+            db: AsyncSession,
+            note_id: str,
+            user_id: str,
+            top_k: int = 3,
     ) -> list[dict]:
         """
         获取与当前笔记语义相似的其他笔记和知识库文档。
@@ -441,7 +442,8 @@ class NoteService:
                 await session.commit()
 
         except json.JSONDecodeError as e:
-            logger.error(f"解析 LLM 标签输出失败 note_id={note_id}, raw={raw_output[:200]}, extracted={json_str[:200]}: {e}")
+            logger.error(
+                f"解析 LLM 标签输出失败 note_id={note_id}, raw={raw_output[:200]}, extracted={json_str[:200]}: {e}")
         except Exception as e:
             logger.error(f"自动标签后台任务失败 note_id={note_id}: {e}")
 
@@ -586,7 +588,6 @@ class NoteService:
 
         return "\n".join(lines)
 
-
     async def batch_delete_notes(self, db: AsyncSession, user_id: str, note_ids: list[str]) -> int:
         """
         批量删除笔记：
@@ -619,7 +620,7 @@ class NoteService:
         return len(existing_ids)
 
     async def batch_update_category(
-        self, db: AsyncSession, user_id: str, note_ids: list[str], category: str
+            self, db: AsyncSession, user_id: str, note_ids: list[str], category: str
     ) -> int:
         """
         批量更新笔记分类。
@@ -656,7 +657,7 @@ class NoteService:
         return buf.getvalue()
 
     async def batch_update_pin(
-        self, db: AsyncSession, user_id: str, note_ids: list[str], is_pinned: bool
+            self, db: AsyncSession, user_id: str, note_ids: list[str], is_pinned: bool
     ) -> int:
         """
         批量置顶/取消置顶笔记。

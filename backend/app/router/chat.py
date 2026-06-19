@@ -11,6 +11,12 @@ from app.router.chat_service import ChatService, get_router_service
 from app.schemas.models import QueryRequest, RAGRequest, RAGResponse, ReorderRequest, ReorderResponse, SessionResponse
 from app.utils.auth_utils import get_current_user_id
 
+"""
+类似于 Spring 里的：
+@RestController
+@RequestMapping("/chat")
+class ChatController {}
+"""
 chat_router = APIRouter(prefix="/chat", tags=["chat"])
 
 
