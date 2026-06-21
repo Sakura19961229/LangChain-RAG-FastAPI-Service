@@ -12,6 +12,7 @@ def get_project_root() -> str:
     project_root = os.path.dirname(app_dir)
     return project_root
 
+
 def get_abstract_path(relative_path: str) -> str:
     """
     根据传入的相对路径，获取项目根目录下的绝对路径
@@ -23,12 +24,14 @@ def get_abstract_path(relative_path: str) -> str:
     abstract_path = os.path.normpath(os.path.join(project_path, relative_path))
     return abstract_path
 
+
 def get_data_path() -> str:
     """
     获取数据目录路径
     :return: 数据目录绝对路径
     """
     return get_abstract_path('data')
+
 
 def get_config_path() -> str:
     """

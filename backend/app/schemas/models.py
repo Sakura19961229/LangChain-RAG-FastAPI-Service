@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel
 
 
@@ -247,4 +246,3 @@ class NoteTemplateResponse(BaseModel):
 class NoteTemplateReorder(BaseModel):
     """笔记模板重新排序请求模型"""
     ids: list[str]
-

@@ -14,26 +14,31 @@ from app.utils.auth_utils import decode_django_jwt
 current_user_id_var: ContextVar[str] = ContextVar('current_user_id', default=None)
 thinking_callback_var: ContextVar[Callable | None] = ContextVar('thinking_callback', default=None)
 
+
 def set_current_user_id(user_id: str):
     """设置当前用户ID到上下文"""
     current_user_id_var.set(user_id)
+
 
 def get_current_user_id_from_context() -> str:
     """从上下文获取当前用户ID"""
     return current_user_id_var.get()
 
+
 def set_thinking_callback(callback):
     """设置思考过程回调到上下文"""
     thinking_callback_var.set(callback)
+
 
 def get_thinking_callback_from_context():
     """从上下文获取思考过程回调"""
     return thinking_callback_var.get()
 
+
 @tool(description=(
-    "用于从向量数据库里检索文档并生成摘要，返回包含文档列表和摘要的结果。"
-    "返回格式为：'摘要: [摘要内容]\n\n检索到的文档列表:\n1. [文档1内容]\n2. [文档2内容]\n...'。"
-    "注意：文档已经过自动重排序，无需再调用重排序工具"
+        "用于从向量数据库里检索文档并生成摘要，返回包含文档列表和摘要的结果。"
+        "返回格式为：'摘要: [摘要内容]\n\n检索到的文档列表:\n1. [文档1内容]\n2. [文档2内容]\n...'。"
+        "注意：文档已经过自动重排序，无需再调用重排序工具"
 ))
 async def rag_summary_tools(query: str, user_id: str = None) -> str:
     """RAG 摘要工具"""
@@ -53,6 +58,7 @@ async def rag_summary_tools(query: str, user_id: str = None) -> str:
 
     return formatted_result
 
+
 @tool(description="当用户明确问自己的ID和用户名时，从JWT中获取当前用户ID和用户名，参数为完整的JWT token字符串")
 async def get_user_info_tools(token: str) -> str:
     """获取用户信息工具"""
@@ -64,12 +70,15 @@ async def get_user_info_tools(token: str) -> str:
     else:
         return "无法解析JWT token，无法获取用户信息"
 
+
 @tool(description="用于获取当前年月日时分的工具")
 async def what_time_is_now() -> str:
     """获取当前年月日时分的工具"""
     return f"当前时间是：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-@tool(description="语义搜索用户的笔记，根据关键词返回最相关的笔记列表。参数 query 为搜索关键词，top_k 为返回结果数量（默认5）。")
+
+@tool(
+    description="语义搜索用户的笔记，根据关键词返回最相关的笔记列表。参数 query 为搜索关键词，top_k 为返回结果数量（默认5）。")
 async def search_notes_tool(query: str, top_k: int = 5) -> str:
     """搜索笔记工具"""
     user_id = get_current_user_id_from_context()
@@ -93,6 +102,7 @@ async def search_notes_tool(query: str, top_k: int = 5) -> str:
             logger.error(f"搜索笔记失败: {e}")
             return f"搜索笔记时出错: {str(e)}"
 
+
 @tool(description="获取用户的笔记统计信息，包括笔记总数、各分类（工作/学习/生活/项目）的笔记数量。")
 async def get_note_stats_tool() -> str:
     """笔记统计工具"""
@@ -115,6 +125,7 @@ async def get_note_stats_tool() -> str:
             logger.error(f"获取笔记统计失败: {e}")
             return f"获取笔记统计时出错: {str(e)}"
 
+
 @tool(description="获取今日待回顾的笔记列表。返回每篇笔记的标题、内容预览和回顾次数，帮助用户进行间隔重复复习。")
 async def get_today_reviews_tool() -> str:
     """获取今日回顾列表工具"""
@@ -136,7 +147,9 @@ async def get_today_reviews_tool() -> str:
             logger.error(f"获取今日回顾失败: {e}")
             return f"获取今日回顾时出错: {str(e)}"
 
-@tool(description="标记一篇笔记为已回顾。参数 note_id 为笔记ID。调用成功后笔记的下次回顾时间会自动按艾宾浩斯遗忘曲线延后。")
+
+@tool(
+    description="标记一篇笔记为已回顾。参数 note_id 为笔记ID。调用成功后笔记的下次回顾时间会自动按艾宾浩斯遗忘曲线延后。")
 async def mark_reviewed_tool(note_id: str) -> str:
     """标记回顾完成工具"""
     user_id = get_current_user_id_from_context()
@@ -153,10 +166,11 @@ async def mark_reviewed_tool(note_id: str) -> str:
             logger.error(f"标记回顾失败: {e}")
             return f"标记回顾时出错: {str(e)}"
 
+
 @tool(description=(
-    "创建一篇新笔记。参数 title 为笔记标题，content 为笔记内容"
-    "（支持Markdown格式，可选，不传则只创建标题）。"
-    "创建后会自动生成向量索引和智能标签。"
+        "创建一篇新笔记。参数 title 为笔记标题，content 为笔记内容"
+        "（支持Markdown格式，可选，不传则只创建标题）。"
+        "创建后会自动生成向量索引和智能标签。"
 ))
 async def create_note_tool(title: str, content: str = "") -> str:
     """创建笔记工具"""
@@ -173,7 +187,9 @@ async def create_note_tool(title: str, content: str = "") -> str:
             logger.error(f"创建笔记失败: {e}")
             return f"创建笔记时出错: {str(e)}"
 
-@tool(description="获取某篇笔记的关联推荐，包括语义相似的笔记和知识库文档。参数 note_id 为笔记ID，top_k 为返回数量（默认3）。")
+
+@tool(
+    description="获取某篇笔记的关联推荐，包括语义相似的笔记和知识库文档。参数 note_id 为笔记ID，top_k 为返回数量（默认3）。")
 async def get_related_notes_tool(note_id: str, top_k: int = 3) -> str:
     """关联笔记推荐工具"""
     user_id = get_current_user_id_from_context()

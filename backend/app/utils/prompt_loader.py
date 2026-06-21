@@ -34,5 +34,6 @@ def load_prompt(prompt_type: str = 'main_prompt'):
         logger.error(f"【加载提示词模板】读取 {prompt_path} 时出错: {e}")
         raise e
 
+
 if __name__ == '__main__':
     print(load_prompt('report_prompt'))

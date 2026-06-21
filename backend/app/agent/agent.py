@@ -189,7 +189,8 @@ async def get_agent_response(
         **kwargs
 ):
     """
-    获取 Agent 响应（使用工厂创建实例）
+    获取 Agent 响应（使用工厂创建实例）（非流式版本）
+    注意：虽然函数是非流式响应，但内部仍然用 astream() 收集结果，只是不实时推给前端，而是最后拼成完整字符串返回
     :param query: 用户查询
     :param history: 会话历史 [(user_msg, assistant_msg), ...]
     :param user_id: 用户ID
@@ -268,8 +269,13 @@ async def get_agent_stream_response(
     :return: 流式响应生成器
     """
 
+    # 工具/RAG 产生的思考事件
     thinking_queue = asyncio.Queue()
+
+    # 保存最终回答或错误
     agent_result_holder = {"response": None, "error": None}
+
+    # 标记 Agent 是否执行完成
     agent_done = asyncio.Event()
 
     async def thinking_callback(data: dict):

@@ -27,20 +27,22 @@ class DatabaseSessionManager:
         async with AsyncSessionLocal() as db:
             # 尝试查找会话，验证属于该用户
             result = await db.run_sync(
-                lambda session: session.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user_id).first()
+                lambda session: session.query(ChatSession).filter(ChatSession.id == session_id,
+                                                                  ChatSession.user_id == user_id).first()
             )
 
             if result:
                 # 获取会话历史
                 messages = await db.run_sync(
-                    lambda session: session.query(ChatMessage).filter(ChatMessage.session_id == result.id).order_by(ChatMessage.created_at).all()
+                    lambda session: session.query(ChatMessage).filter(ChatMessage.session_id == result.id).order_by(
+                        ChatMessage.created_at).all()
                 )
                 # 转换为 (user_message, assistant_message) 格式
                 history = []
                 i = 0
                 while i < len(messages):
-                    if messages[i].role == "user" and i + 1 < len(messages) and messages[i+1].role == "assistant":
-                        history.append((messages[i].content, messages[i+1].content))
+                    if messages[i].role == "user" and i + 1 < len(messages) and messages[i + 1].role == "assistant":
+                        history.append((messages[i].content, messages[i + 1].content))
                         i += 2
                     else:
                         i += 1
@@ -139,7 +141,8 @@ class DatabaseSessionManager:
         async with AsyncSessionLocal() as db:
             # 查找会话，验证属于该用户
             session = await db.run_sync(
-                lambda session: session.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user_id).first()
+                lambda session: session.query(ChatSession).filter(ChatSession.id == session_id,
+                                                                  ChatSession.user_id == user_id).first()
             )
 
             if session:
@@ -183,6 +186,7 @@ class DatabaseSessionManager:
 
 # 全局数据库会话管理器实例
 database_session_manager = None
+
 
 # 初始化数据库会话管理器
 async def init_database_session_manager():
