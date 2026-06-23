@@ -1,6 +1,7 @@
 import os
 import time
 
+import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from starlette.middleware.cors import CORSMiddleware
@@ -81,6 +82,8 @@ async def say_hello(name: str):
 @app.on_event("startup")
 async def startup_event():
     """应用启动时初始化会话管理器"""
+    logger.debug("startup_event...")
+
     # 初始化数据库表结构（自动创建/迁移）
     await init_db()
     logger.info("数据库表结构初始化完成")
@@ -112,3 +115,8 @@ async def shutdown_event():
     from app.db.db_config import async_engine
     await async_engine.dispose()
     logger.info("数据库引擎已关闭")
+
+
+if __name__ == "__main__":
+    # 和 uv run uvicorn main:app 基本等效，方便断点调试
+    uvicorn.run(app, host="0.0.0.0", port=8000)
