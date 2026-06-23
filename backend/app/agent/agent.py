@@ -310,7 +310,8 @@ async def get_agent_stream_response(
             }):
                 if "output" in chunk:
                     full_response.append(chunk["output"])
-                elif "intermediate_steps" in chunk:
+
+                if "intermediate_steps" in chunk:
                     for action, observation in chunk["intermediate_steps"]:
                         logger.info(f"\n\n🧠 [Agent 思考] {action.log}")
                         logger.info(f"🛠️ [调用工具] {action.tool}")
