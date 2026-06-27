@@ -93,6 +93,7 @@ ehthumbs_vista.db
 # Temporary files
 *.tmp
 *.temp
+tmp/
 
 # AI agent/Claude config
 .agents/
