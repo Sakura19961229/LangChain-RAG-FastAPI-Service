@@ -229,7 +229,8 @@ async def get_agent_response(
                     logger.info(f"\n\n🧠 [Agent 思考] {action.log}")
                     logger.info(f"🛠️ [调用工具] {action.tool}")
                     logger.info(f"📥 [工具输入] {action.tool_input}")
-                    logger.info(f"📤 [工具结果] {observation}\n")
+                    obs_preview = observation[:200] + "...（已截断）" if len(str(observation)) > 200 else observation
+                    logger.info(f"📤 [工具结果] {obs_preview}\n")
                     # 收集步骤
                     steps.append({
                         "thought": action.log,
@@ -317,7 +318,8 @@ async def get_agent_stream_response(
                         logger.info(f"\n\n🧠 [Agent 思考] {action.log}")
                         logger.info(f"🛠️ [调用工具] {action.tool}")
                         logger.info(f"📥 [工具输入] {action.tool_input}")
-                        logger.info(f"📤 [工具结果] {observation}\n")
+                        obs_preview = observation[:200] + "...（已截断）" if len(str(observation)) > 200 else observation
+                        logger.info(f"📤 [工具结果] {obs_preview}\n")
 
             agent_result_holder["response"] = "".join(full_response) if full_response else "抱歉，我无法理解您的请求。"
         except Exception as e:

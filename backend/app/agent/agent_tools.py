@@ -11,6 +11,9 @@ from app.rag.rag_service import RagService
 from app.services.review_service import review_service
 from app.utils.auth_utils import decode_django_jwt
 
+# Python 中的 ContextVar: 协程级别的 ThreadLocal
+# 类比 Java: ThreadLocal
+# 类比 Go: context.WithValue()
 current_user_id_var: ContextVar[str] = ContextVar('current_user_id', default=None)
 thinking_callback_var: ContextVar[Callable | None] = ContextVar('thinking_callback', default=None)
 
