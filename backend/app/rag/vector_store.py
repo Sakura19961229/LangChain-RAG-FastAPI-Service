@@ -137,7 +137,8 @@ class VectorStoreService:
     async def check_md5_hex(self, md5_for_check: str, user_id: str = None) -> bool:
         return await self.md5_store.check_md5_hex(md5_for_check, user_id)
 
-    async def save_md5_hex(self, md5_hex: str, filename: str = None, original_filename: str = None, user_id: str = None):
+    async def save_md5_hex(self, md5_hex: str, filename: str = None, original_filename: str = None,
+                           user_id: str = None):
         await self.md5_store.save_md5_hex(md5_hex, filename, original_filename, user_id)
 
     def save_md5_hex_sync(self, md5_hex: str, filename: str = None, original_filename: str = None, user_id: str = None):
@@ -312,7 +313,8 @@ class VectorStoreService:
 
                 if not docs_info[filename]['preview'] and content:
                     preview_length = 100
-                    docs_info[filename]['preview'] = content[:preview_length] + ("..." if len(content) > preview_length else "")
+                    docs_info[filename]['preview'] = content[:preview_length] + (
+                        "..." if len(content) > preview_length else "")
 
             result = list(docs_info.values())
             logger.info(f"【向量数据库】获取用户 {user_id} 的知识库文档，共 {len(result)} 个文件")
@@ -487,5 +489,6 @@ if __name__ == '__main__':
         print(f"检索结果数量: {len(results)}")
         for result in results:
             print(result)
+
 
     asyncio.run(main())

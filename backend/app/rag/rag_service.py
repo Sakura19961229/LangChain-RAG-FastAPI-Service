@@ -48,7 +48,6 @@ class RagService:
 
             self.retriever = await self.vector_store.get_retriever(query, self.user_id)
 
-
     def _init_chain(self):
         """初始化链"""
         chain = (
@@ -67,9 +66,9 @@ class RagService:
         """
         try:
             hyde_chain = (
-                self.hyde_prompt_template
-                | self.chat_model
-                | StrOutputParser()
+                    self.hyde_prompt_template
+                    | self.chat_model
+                    | StrOutputParser()
             )
             hypothetical_doc = await hyde_chain.ainvoke({"query": query})
             logger.info(f"【HyDE】生成的假设性文档:\n{hypothetical_doc}")
@@ -108,7 +107,8 @@ class RagService:
                     "stage": "hyde",
                     "content": "假设性文档生成完成",
                     "details": {
-                        "hypothetical_doc_preview": hypothetical_doc[:200] + "..." if len(hypothetical_doc) > 200 else hypothetical_doc
+                        "hypothetical_doc_preview": hypothetical_doc[:200] + "..." if len(
+                            hypothetical_doc) > 200 else hypothetical_doc
                     }
                 })
 
@@ -186,7 +186,8 @@ class RagService:
                 "content": f"正在对 {len(documents)} 个文档进行重排序..."
             })
 
-        result = await init_manager.reorder_service.reorder_documents(query, documents, thinking_callback=self.thinking_callback)
+        result = await init_manager.reorder_service.reorder_documents(query, documents,
+                                                                      thinking_callback=self.thinking_callback)
         if result["success"]:
             # 提取重排序后的文档内容
             reordered_documents = [doc.get("document", "") for doc in result["documents"]]
@@ -198,7 +199,8 @@ class RagService:
                     score_details.append({
                         "rank": i,
                         "score": round(doc.get("similarity", 0), 4),
-                        "preview": doc.get("document", "")[:100] + "..." if len(doc.get("document", "")) > 100 else doc.get("document", "")
+                        "preview": doc.get("document", "")[:100] + "..." if len(
+                            doc.get("document", "")) > 100 else doc.get("document", "")
                     })
                 await self.thinking_callback({
                     "type": "thinking",
@@ -351,13 +353,16 @@ class RagService:
         result = await self.get_documents_and_summary(query)
         return result.get("summary", "抱歉，处理您的请求时出现了错误。")
 
+
 if __name__ == '__main__':
     import asyncio
+
 
     async def main():
         service = RagService()
         await service.initialize_retriever()
         result = await service.rag_summary("小户型适合什么扫地机器人")
         print(result)
+
 
     asyncio.run(main())

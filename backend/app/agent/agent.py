@@ -280,6 +280,7 @@ async def get_agent_stream_response(
 
     async def thinking_callback(data: dict):
         """思考过程回调函数，将事件放入队列"""
+        # 目前只有少数工具/流程会主动调用
         logger.info(f"【思考过程】{data.get('stage', 'unknown')}: {data.get('content', '')}")
         await thinking_queue.put(data)
 
