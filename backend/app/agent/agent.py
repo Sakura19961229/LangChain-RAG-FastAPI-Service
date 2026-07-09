@@ -120,7 +120,7 @@ class AgentFactory:
         return create_agent(
             chat_model,
             tools,
-            prompt=self.default_system_prompt,
+            system_prompt=self.default_system_prompt,
         )
 
 
