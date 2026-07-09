@@ -1,7 +1,7 @@
 import datetime
-from collections.abc import Callable
 from contextvars import ContextVar
 
+from langchain_core.callbacks import adispatch_custom_event
 from langchain_core.tools import tool
 
 from app.core.background_init import init_manager
@@ -15,7 +15,6 @@ from app.utils.auth_utils import decode_django_jwt
 # 类比 Java: ThreadLocal
 # 类比 Go: context.WithValue()
 current_user_id_var: ContextVar[str] = ContextVar('current_user_id', default=None)
-thinking_callback_var: ContextVar[Callable | None] = ContextVar('thinking_callback', default=None)
 
 
 def set_current_user_id(user_id: str):
@@ -26,16 +25,6 @@ def set_current_user_id(user_id: str):
 def get_current_user_id_from_context() -> str:
     """从上下文获取当前用户ID"""
     return current_user_id_var.get()
-
-
-def set_thinking_callback(callback):
-    """设置思考过程回调到上下文"""
-    thinking_callback_var.set(callback)
-
-
-def get_thinking_callback_from_context():
-    """从上下文获取思考过程回调"""
-    return thinking_callback_var.get()
 
 
 @tool(description=(
@@ -49,8 +38,11 @@ async def rag_summary_tools(query: str, user_id: str = None) -> str:
     if not effective_user_id:
         return "错误: 无法确定用户身份，请提供有效的user_id"
 
-    thinking_callback = get_thinking_callback_from_context()
-    result = await RagService(effective_user_id, thinking_callback=thinking_callback).get_documents_and_summary(query)
+    async def emit_rag_progress(data: dict):
+        """将 RAG 内部进度通过 LangGraph 自定义事件发射，外层 astream_events 会自动捕获"""
+        await adispatch_custom_event("rag_progress", data)
+
+    result = await RagService(effective_user_id, thinking_callback=emit_rag_progress).get_documents_and_summary(query)
     documents = result.get("documents", [])
     summary = result.get("summary", "")
 
