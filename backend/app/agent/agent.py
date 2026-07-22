@@ -223,7 +223,7 @@ async def get_agent_response(
         }):
             if "output" in chunk:
                 full_response.append(chunk["output"])
-            elif "intermediate_steps" in chunk:
+            if "intermediate_steps" in chunk:
                 for action, observation in chunk["intermediate_steps"]:
                     # 记录日志
                     logger.info(f"\n\n🧠 [Agent 思考] {action.log}")
