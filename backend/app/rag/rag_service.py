@@ -57,6 +57,23 @@ class RagService:
         )
         return chain
 
+    @staticmethod
+    def _should_skip_hyde(query: str) -> bool:
+        """
+        判断是否跳过 HyDE，简单/精确查询直接用原始 query 检索。
+        规则：短 query 或包含精确疑问词的事实性问题。
+        """
+        # 规则1：非常短的 query，信息已足够具体
+        if len(query) <= 10:
+            return True
+
+        # 规则2：短 query + 精确疑问词 → 事实性问题
+        factual_patterns = ["是谁", "是什么", "哪个", "哪里", "多少", "几个", "什么时候", "在哪"]
+        if len(query) <= 20 and any(p in query for p in factual_patterns):
+            return True
+
+        return False
+
     @traceable
     async def generate_hypothetical_document(self, query: str) -> str:
         """
@@ -89,31 +106,43 @@ class RagService:
             if self.retriever is None:
                 await self.initialize_retriever(query)
 
-            # 使用HyDE技术生成假设性文档
-            logger.info(f"【HyDE】开始处理查询: {query}")
+            # 判断是否需要 HyDE
+            if self._should_skip_hyde(query):
+                logger.info(f"【检索】简单查询，跳过 HyDE，直接检索: {query}")
+                search_text = query
 
-            if self.thinking_callback:
-                await self.thinking_callback({
-                    "type": "thinking",
-                    "stage": "hyde",
-                    "content": f"正在基于查询「{query}」生成假设性文档..."
-                })
+                if self.thinking_callback:
+                    await self.thinking_callback({
+                        "type": "thinking",
+                        "stage": "retrieval",
+                        "content": f"简单查询，直接检索「{query}」..."
+                    })
+            else:
+                # 使用HyDE技术生成假设性文档
+                logger.info(f"【HyDE】开始处理查询: {query}")
 
-            hypothetical_doc = await self.generate_hypothetical_document(query)
+                if self.thinking_callback:
+                    await self.thinking_callback({
+                        "type": "thinking",
+                        "stage": "hyde",
+                        "content": f"正在基于查询「{query}」生成假设性文档..."
+                    })
 
-            if self.thinking_callback:
-                await self.thinking_callback({
-                    "type": "thinking",
-                    "stage": "hyde",
-                    "content": "假设性文档生成完成",
-                    "details": {
-                        "hypothetical_doc_preview": hypothetical_doc[:200] + "..." if len(
-                            hypothetical_doc) > 200 else hypothetical_doc
-                    }
-                })
+                search_text = await self.generate_hypothetical_document(query)
 
-            # 使用假设性文档进行检索
-            logger.info("【HyDE】使用假设性文档进行检索")
+                if self.thinking_callback:
+                    await self.thinking_callback({
+                        "type": "thinking",
+                        "stage": "hyde",
+                        "content": "假设性文档生成完成",
+                        "details": {
+                            "hypothetical_doc_preview": search_text[:200] + "..." if len(
+                                search_text) > 200 else search_text
+                        }
+                    })
+
+            # 使用检索文本进行检索
+            logger.info(f"【检索】使用{'原始查询' if self._should_skip_hyde(query) else '假设性文档'}进行检索")
 
             if self.thinking_callback:
                 await self.thinking_callback({
@@ -122,14 +151,14 @@ class RagService:
                     "content": "正在向量数据库中检索相关文档..."
                 })
 
-            documents = await self.retriever.ainvoke(hypothetical_doc)
+            documents = await self.retriever.ainvoke(search_text)
 
             # 同时检索笔记库
             note_docs = []
             try:
                 note_docs = await asyncio.to_thread(
                     self.note_service.notes_store.similarity_search,
-                    hypothetical_doc, k=3,
+                    search_text, k=3,
                     filter={"user_id": self.user_id}
                 )
             except Exception as e:

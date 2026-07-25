@@ -237,17 +237,49 @@ async def get_agent_stream_response(
 
         # 收集完整响应用于存储到会话历史
         full_response = []
+        # 每轮 LLM 调用的 token 缓冲区，用于区分"思考"和"最终回答"
+        current_llm_buffer = []
+        has_tool_calls_in_current_turn = False
 
         async for event in agent.astream_events({"messages": messages}, version="v2"):
             event_kind = event["event"]
 
-            if event_kind == "on_chat_model_stream":
-                # 逐 token 流式输出
+            # 只处理来自 Agent 节点的 LLM 事件，忽略工具内部（node=tools）的嵌套 LLM 调用
+            langgraph_node = event.get("metadata", {}).get("langgraph_node", "")
+            is_agent_llm = langgraph_node == "model"
+
+            if event_kind == "on_chat_model_start" and is_agent_llm:
+                # 新一轮 Agent LLM 调用开始，重置缓冲区
+                current_llm_buffer = []
+                has_tool_calls_in_current_turn = False
+
+            elif event_kind == "on_chat_model_stream" and is_agent_llm:
                 chunk = event["data"]["chunk"]
+                # 检测是否包含工具调用（说明这轮是"思考→决定调工具"）
+                if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
+                    has_tool_calls_in_current_turn = True
                 token = chunk.content if hasattr(chunk, "content") else ""
                 if token:
-                    full_response.append(token)
-                    yield f"data: {json.dumps({'type': 'response', 'content': token}, ensure_ascii=False)}\n\n"
+                    current_llm_buffer.append(token)
+
+            elif event_kind == "on_chat_model_end" and is_agent_llm:
+                # 一轮 Agent LLM 调用结束，根据是否有工具调用决定事件类型
+                content = "".join(current_llm_buffer)
+                if content:
+                    if has_tool_calls_in_current_turn:
+                        # 这是中间思考（模型决定调用工具前的推理）
+                        logger.info(f"🧠 [Agent 思考] {content[:200]}")
+                        yield f"data: {json.dumps({'type': 'thinking', 'stage': 'reasoning', 'content': content}, ensure_ascii=False)}\n\n"
+                    else:
+                        # 这是最终回答（不再调用工具）
+                        full_response.append(content)
+                        # 分块推送，模拟打字机效果（与旧版行为一致）
+                        chunk_size = 15
+                        for i in range(0, len(content), chunk_size):
+                            chunk_text = content[i:i + chunk_size]
+                            yield f"data: {json.dumps({'type': 'response', 'content': chunk_text}, ensure_ascii=False)}\n\n"
+                current_llm_buffer = []
+                has_tool_calls_in_current_turn = False
 
             elif event_kind == "on_tool_start":
                 # 工具调用开始
@@ -260,13 +292,12 @@ async def get_agent_stream_response(
                 # 工具调用结束
                 tool_name = event.get("name", "unknown")
                 tool_output = event["data"].get("output", "")
-                # 截断过长的工具输出用于日志
-                output_preview = str(tool_output)[:200] + "...（已截断）" if len(str(tool_output)) > 200 else str(tool_output)
+                output_preview = str(tool_output)[:200] + "..." if len(str(tool_output)) > 200 else str(tool_output)
                 logger.info(f"📤 [工具结果] {tool_name}: {output_preview}")
                 yield f"data: {json.dumps({'type': 'tool_end', 'tool': tool_name, 'output': output_preview}, ensure_ascii=False)}\n\n"
 
             elif event_kind == "on_custom_event" and event.get("name") == "rag_progress":
-                # RAG 内部细粒度进度事件（检索/HyDE/重排序/摘要等阶段）
+                # RAG 内部细粒度进度事件
                 progress_data = event["data"]
                 logger.info(f"💭 [RAG进度] {progress_data.get('stage', 'unknown')}: {progress_data.get('content', '')}")
                 yield f"data: {json.dumps({'type': 'thinking', **progress_data}, ensure_ascii=False)}\n\n"
