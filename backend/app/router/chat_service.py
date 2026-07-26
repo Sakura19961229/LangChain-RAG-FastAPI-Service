@@ -19,7 +19,7 @@ class ChatService:
 
         history = await sm.session_manager.get_history(session_id, user_id)
 
-        result = await get_agent_response(query, history)
+        result = await get_agent_response(query, history, user_id)
         response = result.get("response")
         steps = result.get("steps", [])
 
