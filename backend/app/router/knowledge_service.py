@@ -66,7 +66,10 @@ def _sync_slice_file(file_content: bytes, filename: str, file_index: int, user_i
                 queue.put(SliceResult.error_result(file_index=file_index, filename=filename, error="切片结果为空"))
                 return
 
+            # 上下文注入：给每个 chunk 的内容添加来源文件名前缀，提升检索召回率
+            context_prefix = f"[文档：{filename}]"
             for doc in split_docs:
+                doc.page_content = f"{context_prefix}\n{doc.page_content}"
                 doc.metadata['user_id'] = user_id
                 doc.metadata['original_filename'] = filename
                 doc.metadata['md5'] = md5_hex

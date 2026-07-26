@@ -186,6 +186,11 @@ class DocumentProcessor:
                     })
                 logger.info(f"【向量数据库】开始存储向量: {filename}，文档数量: {len(document)}")
 
+                # 上下文注入：给每个 chunk 的内容添加来源文件名前缀，提升检索召回率
+                context_prefix = f"[文档：{filename}]"
+                for doc in document:
+                    doc.page_content = f"{context_prefix}\n{doc.page_content}"
+
                 if user_id:
                     for doc in document:
                         doc.metadata['user_id'] = user_id
