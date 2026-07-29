@@ -73,11 +73,8 @@ class AsyncTextSplitter:
         return chunks
 
     async def split_documents(self, documents: list[Any]) -> list[Any]:
-        """分割文档列表"""
-        if self.embedding_model:
-            return await self._semantic_split_documents(documents)
-        split_docs = await asyncio.to_thread(self.splitter.split_documents, documents)
-        return split_docs
+        """分割文档列表（自动根据文件类型选择策略）"""
+        return self._type_aware_split_documents(documents)
 
     def split_text_sync(self, text: str) -> list[str]:
         """同步分割文本"""
@@ -86,10 +83,104 @@ class AsyncTextSplitter:
         return self.splitter.split_text(text)
 
     def split_documents_sync(self, documents: list[Any]) -> list[Any]:
-        """同步分割文档列表"""
-        if self.embedding_model:
-            return self._semantic_split_documents_sync(documents)
-        return self.splitter.split_documents(documents)
+        """同步分割文档列表（自动根据文件类型选择策略）"""
+        return self._type_aware_split_documents(documents)
+
+    # ─── 类型感知分块 ─────────────────────────────────────────────────
+
+    # Markdown 二级标题分割正则
+    _md_heading_split = re.compile(r'(?=^## )', re.MULTILINE)
+    # 纯文本段落分割正则：空行 或 中文编号（一、二、...）或 数字编号（1. 2. ...）
+    _txt_section_split = re.compile(r'(?:\n\s*\n)|(?=^[一二三四五六七八九十]+、)|(?=^\d+[\.\、])', re.MULTILINE)
+
+    def _detect_doc_type(self, doc: Document) -> str:
+        """根据 metadata 中的 source 路径判断文档类型"""
+        source = doc.metadata.get("source", "")
+        if source.endswith(".md"):
+            return "markdown"
+        elif source.endswith(".txt"):
+            return "txt"
+        else:
+            return "other"
+
+    def _type_aware_split_documents(self, documents: list[Any]) -> list[Any]:
+        """
+        文档类型感知分块：
+        - .md → 按 ## 二级标题切块
+        - .txt → 按空行/编号段落切块
+        - 其他 → 走语义分块（有 embedding）或基础分块
+        """
+        result = []
+        for doc in documents:
+            doc_type = self._detect_doc_type(doc)
+
+            if doc_type == "markdown":
+                chunks = self._split_markdown(doc.page_content)
+            elif doc_type == "txt":
+                chunks = self._split_plain_text(doc.page_content)
+            elif self.embedding_model:
+                chunks = self._semantic_split_text_sync(doc.page_content)
+            else:
+                chunks = self.splitter.split_text(doc.page_content)
+
+            for chunk in chunks:
+                result.append(Document(page_content=chunk, metadata=doc.metadata.copy()))
+
+        return result
+
+    def _split_markdown(self, text: str) -> list[str]:
+        """
+        Markdown 结构感知分块：按 ## 二级标题切割。
+        每个 section 保留其标题作为 chunk 首行。
+        超长 section 做二次切割。
+        """
+        sections = self._md_heading_split.split(text)
+        sections = [s.strip() for s in sections if s.strip()]
+
+        # 如果没有 ## 标题（纯段落 markdown），降级为语义/基础分块
+        if len(sections) <= 1:
+            if self.embedding_model:
+                return self._semantic_split_text_sync(text)
+            return self.splitter.split_text(text)
+
+        chunks = []
+        for section in sections:
+            if len(section) <= self.max_chunk_size:
+                chunks.append(section)
+            else:
+                # 超长 section 二次切割
+                sub_chunks = self.splitter.split_text(section)
+                chunks.extend(sub_chunks)
+
+        # 过短块合并
+        chunks = self._merge_short_chunks(chunks)
+        return chunks
+
+    def _split_plain_text(self, text: str) -> list[str]:
+        """
+        纯文本结构感知分块：按空行或编号段落切割。
+        适用于报告类文档（一、核心性能指标 / 二、缓存层指标 ...）
+        """
+        sections = self._txt_section_split.split(text)
+        sections = [s.strip() for s in sections if s.strip()]
+
+        # 如果没有明显段落结构，降级
+        if len(sections) <= 1:
+            if self.embedding_model:
+                return self._semantic_split_text_sync(text)
+            return self.splitter.split_text(text)
+
+        chunks = []
+        for section in sections:
+            if len(section) <= self.max_chunk_size:
+                chunks.append(section)
+            else:
+                sub_chunks = self.splitter.split_text(section)
+                chunks.extend(sub_chunks)
+
+        # 过短块合并
+        chunks = self._merge_short_chunks(chunks)
+        return chunks
 
     # ─── 语义分块核心逻辑 ─────────────────────────────────────────────
 

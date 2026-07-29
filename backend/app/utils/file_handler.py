@@ -145,14 +145,15 @@ async def word_loader(file_path: str) -> list[Document]:
 
 async def markdown_loader(file_path: str) -> list[Document]:
     """
-    加载Markdown文件内容
+    加载Markdown文件内容（保留原始 Markdown 语法，以便分块器识别标题结构）
     :param file_path: Markdown文件路径
     :return: Markdown文件内容
     """
     abs_file_path = get_abstract_path(file_path) if not os.path.isabs(file_path) else file_path
     try:
-        loader = UnstructuredMarkdownLoader(abs_file_path, mode="single")
-        return await asyncio.to_thread(loader.load)
+        async with aiofiles.open(abs_file_path, 'r', encoding='utf-8') as f:
+            content = await f.read()
+        return [Document(page_content=content, metadata={"source": abs_file_path})]
     except Exception as e:
         logger.error(f"【Markdown文件加载】加载文件 {abs_file_path} 时出错: {e}")
         return []
@@ -259,14 +260,15 @@ def word_loader_sync(file_path: str) -> list[Document]:
 
 def markdown_loader_sync(file_path: str) -> list[Document]:
     """
-    同步加载Markdown文件内容（用于多线程场景）
+    同步加载Markdown文件内容（保留原始 Markdown 语法）
     :param file_path: Markdown文件路径
     :return: Markdown文件内容
     """
     abs_file_path = get_abstract_path(file_path) if not os.path.isabs(file_path) else file_path
     try:
-        loader = UnstructuredMarkdownLoader(abs_file_path, mode="single")
-        return loader.load()
+        with open(abs_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return [Document(page_content=content, metadata={"source": abs_file_path})]
     except Exception as e:
         logger.error(f"【Markdown文件加载】加载文件 {abs_file_path} 时出错: {e}")
         return []
