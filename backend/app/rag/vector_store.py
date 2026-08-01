@@ -112,6 +112,12 @@ class VectorStoreService:
             embedding_function=self._get_embed_model(),
             persist_directory=persist_dir,
         )
+        # Parent collection（不做 embed，仅存原文 + metadata，用 get() 按 id 取）
+        self.parent_store = Chroma(
+            collection_name=chroma_config.get('parent_collection_name', 'rag_parents'),
+            embedding_function=self._get_embed_model(),
+            persist_directory=persist_dir,
+        )
         self.md5_store = MD5Store()
         self.hybrid_retriever = HybridRetriever(self.vectors_store)
         self.document_processor = DocumentProcessor(self.vectors_store, self.md5_store, self._get_embed_model())
@@ -120,6 +126,51 @@ class VectorStoreService:
     def _get_embed_model():
         """获取嵌入模型（延迟加载包装器，模型在首次调用时解析）"""
         return _LazyEmbedding()
+
+    # ─── Parent-Child 相关方法 ────────────────────────────────────────
+
+    async def store_parents(self, documents: list[Document]):
+        """存储 Parent 文档到 rag_parents collection，使用 metadata.parent_id 作为文档 ID"""
+        ids = [doc.metadata["parent_id"] for doc in documents]
+        await asyncio.to_thread(self.parent_store.add_documents, documents, ids=ids)
+
+    def store_parents_sync(self, documents: list[Document]):
+        """同步存储 Parent 文档，使用 metadata.parent_id 作为文档 ID"""
+        ids = [doc.metadata["parent_id"] for doc in documents]
+        self.parent_store.add_documents(documents, ids=ids)
+
+    async def get_parents_by_ids(self, parent_ids: list[str]) -> list[Document]:
+        """根据 parent_id 列表从 rag_parents 取出 Parent 文档"""
+        if not parent_ids:
+            return []
+        result = await asyncio.to_thread(
+            self.parent_store.get,
+            ids=parent_ids,
+            include=['documents', 'metadatas']
+        )
+        documents = []
+        for i, content in enumerate(result.get('documents', [])):
+            if content:
+                metadata = result['metadatas'][i] if i < len(result.get('metadatas', [])) else {}
+                documents.append(Document(page_content=content, metadata=metadata))
+        return documents
+
+    def get_parents_by_ids_sync(self, parent_ids: list[str]) -> list[Document]:
+        """同步版本"""
+        if not parent_ids:
+            return []
+        result = self.parent_store.get(
+            ids=parent_ids,
+            include=['documents', 'metadatas']
+        )
+        documents = []
+        for i, content in enumerate(result.get('documents', [])):
+            if content:
+                metadata = result['metadatas'][i] if i < len(result.get('metadatas', [])) else {}
+                documents.append(Document(page_content=content, metadata=metadata))
+        return documents
+
+    # ─── 原有方法 ────────────────────────────────────────────────────
 
     async def get_bm25_retriever(self, user_id: str = None):
         return await self.hybrid_retriever.get_bm25_retriever(user_id)

@@ -46,6 +46,8 @@ class ProcessingState:
 
 def _sync_slice_file(file_content: bytes, filename: str, file_index: int, user_id: str, queue: TaskQueue):
     """在 ThreadPoolExecutor 中执行的同步切片函数"""
+    from app.rag.document_handler.processor import DocumentProcessor
+
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
             temp_file.write(file_content)
@@ -53,7 +55,6 @@ def _sync_slice_file(file_content: bytes, filename: str, file_index: int, user_i
 
         try:
             # 在加载文档之前计算 md5，因为多模态PDF加载器需要 md5 来确定图片的存储路径。
-            # 如果后移（等切片完再算），多模态加载器就无法将图片保存到正确的位置。
             md5_hex = get_file_md5_hex_sync(temp_file_path)
             store = VectorStoreService()
             documents = store.get_file_document_sync(temp_file_path, md5=md5_hex, user_id=user_id)
@@ -61,18 +62,34 @@ def _sync_slice_file(file_content: bytes, filename: str, file_index: int, user_i
                 queue.put(SliceResult.error_result(file_index=file_index, filename=filename, error="文件加载为空"))
                 return
 
+            # 保存原始文档（分块前），供 Parent 构建使用
+            from langchain_core.documents import Document as LCDocument
+            raw_documents = [LCDocument(page_content=d.page_content, metadata=d.metadata.copy()) for d in documents]
+
             split_docs = store.split_documents_sync(documents)
             if not split_docs:
                 queue.put(SliceResult.error_result(file_index=file_index, filename=filename, error="切片结果为空"))
                 return
 
-            # 上下文注入：给每个 chunk 的内容添加来源文件名前缀，提升检索召回率
+            # ─── Parent-Child：生成 Parent 并存储 ───────────────
+            processor = DocumentProcessor(store.vectors_store, store.md5_store)
+            parent_docs, parent_id_map = processor._build_parents(
+                raw_documents, filename, md5_hex, user_id
+            )
+            if parent_docs:
+                store.store_parents_sync(parent_docs)
+                logger.info(f"【Parent-Child】存储 {len(parent_docs)} 个 Parent chunk (文件: {filename})")
+
+            # 上下文注入 + metadata 设置 + parent_id
             context_prefix = f"[文档：{filename}]"
             for doc in split_docs:
                 doc.page_content = f"{context_prefix}\n{doc.page_content}"
                 doc.metadata['user_id'] = user_id
                 doc.metadata['original_filename'] = filename
                 doc.metadata['md5'] = md5_hex
+                doc.metadata['parent_id'] = processor._find_parent_id(
+                    doc.page_content, parent_id_map
+                )
 
             queue.put(SliceResult.success_result(
                 file_index=file_index, filename=filename, documents=split_docs, md5=md5_hex

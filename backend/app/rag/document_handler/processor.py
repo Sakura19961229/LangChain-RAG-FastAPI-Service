@@ -1,6 +1,8 @@
 import asyncio
 import os
+import re
 import tempfile
+import uuid
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -78,6 +80,121 @@ class DocumentProcessor:
     def split_documents_sync(self, documents: list[Document]) -> list[Document]:
         """同步分割文档（用于多线程场景）"""
         return self.spliter.split_documents_sync(documents)
+
+    # ─── Parent-Child 构建方法 ──────────────────────────────────────
+
+    _md_heading_split = re.compile(r'(?=^## )', re.MULTILINE)
+
+    def _build_parents(
+        self, raw_documents: list[Document], filename: str, md5_hex: str, user_id: str
+    ) -> tuple[list[Document], dict[str, str]]:
+        """
+        从原始文档构建 Parent chunk。
+        返回 (parent_docs, parent_id_map)
+          - parent_docs: 待存入 rag_parents 的 Document 列表
+          - parent_id_map: {parent_id: parent_content} 用于匹配 Child 归属
+        """
+        parent_max_size = chroma_config.get('parent_max_size', 3000)
+
+        # 合并所有原始文档内容（通常一个文件只有 1 个 Document）
+        full_text = "\n\n".join(d.page_content for d in raw_documents)
+
+        # 对 txt 文件做标准化（和 Child 分块时一致），保证 Parent/Child 内容格式匹配
+        if filename.endswith('.txt'):
+            full_text = self.spliter._normalize_txt_to_markdown(full_text)
+
+        parent_docs = []
+        parent_id_map = {}  # {parent_id: content}
+
+        if len(full_text) <= parent_max_size:
+            # 整篇文档作为 1 个 Parent
+            parent_id = f"parent_{md5_hex}"
+            parent_docs.append(Document(
+                page_content=full_text,
+                metadata={
+                    "parent_id": parent_id,
+                    "original_filename": filename,
+                    "md5": md5_hex,
+                    "user_id": user_id or "",
+                    "type": "parent",
+                }
+            ))
+            parent_id_map[parent_id] = full_text
+        else:
+            # 超长文档：按 ## 章节拆分为多个 Parent
+            sections = self._md_heading_split.split(full_text)
+            sections = [s.strip() for s in sections if s.strip()]
+
+            if len(sections) <= 1:
+                # 无 ## 标题，按 parent_max_size 切割
+                for idx in range(0, len(full_text), parent_max_size):
+                    chunk = full_text[idx:idx + parent_max_size]
+                    parent_id = f"parent_{md5_hex}_{idx}"
+                    parent_docs.append(Document(
+                        page_content=chunk,
+                        metadata={
+                            "parent_id": parent_id,
+                            "original_filename": filename,
+                            "md5": md5_hex,
+                            "user_id": user_id or "",
+                            "type": "parent",
+                        }
+                    ))
+                    parent_id_map[parent_id] = chunk
+            else:
+                for idx, section in enumerate(sections):
+                    parent_id = f"parent_{md5_hex}_{idx}"
+                    parent_docs.append(Document(
+                        page_content=section,
+                        metadata={
+                            "parent_id": parent_id,
+                            "original_filename": filename,
+                            "md5": md5_hex,
+                            "user_id": user_id or "",
+                            "type": "parent",
+                        }
+                    ))
+                    parent_id_map[parent_id] = section
+
+        logger.info(f"【Parent-Child】文件 {filename}: {len(parent_docs)} 个 Parent")
+        return parent_docs, parent_id_map
+
+    @staticmethod
+    def _find_parent_id(child_content: str, parent_id_map: dict[str, str]) -> str:
+        """
+        找到 Child 所属的 Parent ID。
+        策略：
+        1. 单 Parent 时直接返回（最常见情况）
+        2. 多 Parent 时，用 Child 内容片段在各 Parent 中做子串匹配
+        """
+        # 单 Parent 时无需匹配
+        if len(parent_id_map) == 1:
+            return next(iter(parent_id_map))
+
+        # 去掉 context_prefix（[文档：xxx]\n）后再匹配
+        clean_content = child_content
+        if clean_content.startswith("[文档："):
+            newline_idx = clean_content.find("\n")
+            if newline_idx > 0:
+                clean_content = clean_content[newline_idx + 1:]
+
+        # 提取前 60 个有效字符（跳过 # 和空白）用于匹配
+        stripped = clean_content.lstrip("#").lstrip()
+        search_text = stripped[:60]
+
+        best_parent_id = ""
+        best_len = float('inf')
+
+        for parent_id, parent_content in parent_id_map.items():
+            if search_text and search_text in parent_content and len(parent_content) < best_len:
+                best_parent_id = parent_id
+                best_len = len(parent_content)
+
+        # 兜底：如果匹配失败，返回第一个 Parent（总比空好）
+        if not best_parent_id:
+            best_parent_id = next(iter(parent_id_map))
+
+        return best_parent_id
 
     async def get_document(self, files: list = None, user_id: str = None, progress_callback=None):
         """
@@ -161,6 +278,9 @@ class DocumentProcessor:
                     })
                 logger.info(f"【向量数据库】开始切分文档: {filename}")
 
+                # 保存原始文档内容（分块前），供 Parent 构建使用
+                raw_documents = [Document(page_content=d.page_content, metadata=d.metadata.copy()) for d in document]
+
                 document: list[Document] = await self.spliter.split_documents(document)
                 if not document:
                     if progress_callback:
@@ -186,7 +306,17 @@ class DocumentProcessor:
                     })
                 logger.info(f"【向量数据库】开始存储向量: {filename}，文档数量: {len(document)}")
 
-                # 上下文注入：给每个 chunk 的内容添加来源文件名前缀，提升检索召回率
+                # ─── Parent-Child：生成 Parent 并存储 ───────────────
+                from app.rag.vector_store import VectorStoreService
+                store = VectorStoreService()
+                parent_docs, parent_id_map = self._build_parents(
+                    raw_documents, filename, md5_hex, user_id
+                )
+                if parent_docs:
+                    await store.store_parents(parent_docs)
+                    logger.info(f"【Parent-Child】存储 {len(parent_docs)} 个 Parent chunk")
+
+                # ─── 上下文注入 + metadata 设置 ───────────────────
                 context_prefix = f"[文档：{filename}]"
                 for doc in document:
                     doc.page_content = f"{context_prefix}\n{doc.page_content}"
@@ -198,6 +328,10 @@ class DocumentProcessor:
                 for doc in document:
                     doc.metadata['original_filename'] = filename
                     doc.metadata['md5'] = md5_hex
+                    # 给 Child 打 parent_id：匹配所属 Parent
+                    doc.metadata['parent_id'] = self._find_parent_id(
+                        doc.page_content, parent_id_map
+                    )
 
                 await asyncio.to_thread(self.vectors_store.add_documents, document)
 

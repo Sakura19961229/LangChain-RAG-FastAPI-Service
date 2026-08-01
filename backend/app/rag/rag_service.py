@@ -57,6 +57,25 @@ class RagService:
         )
         return chain
 
+    async def _resolve_parents(self, child_documents: list) -> list:
+        """
+        从 Child 文档的 parent_id 找到去重后的 Parent 文档列表。
+        如果 Child 没有 parent_id（旧数据），返回空列表表示不使用 Parent 模式。
+        """
+        parent_ids = set()
+        for doc in child_documents:
+            pid = doc.metadata.get("parent_id", "")
+            if pid:
+                parent_ids.add(pid)
+
+        if not parent_ids:
+            return []
+
+        # 从 rag_parents collection 取 Parent 文档
+        parent_docs = await self.vector_store.get_parents_by_ids(list(parent_ids))
+        logger.info(f"【Parent-Child】从 {len(parent_ids)} 个 parent_id 取到 {len(parent_docs)} 个 Parent")
+        return parent_docs
+
     @staticmethod
     def _should_skip_hyde(query: str) -> bool:
         """
@@ -273,8 +292,55 @@ class RagService:
 
             document_contents = [_format_doc(doc) for doc in documents]
 
-            # 对文档进行重排序
+            # 构建 formatted_content → 原始 Document 的索引映射
+            content_to_doc = {}
+            for i, content in enumerate(document_contents):
+                content_to_doc[content] = documents[i]
+
+            # 对 Child 文档进行重排序（小块打分更精准，在 cross-encoder max_length 内）
             reordered_documents = await self.reorder_documents(query, document_contents)
+
+            # ─── Parent-Child：Reranker 精排后，用 Parent 替换 Child 送给 LLM ───
+            top_k_for_parent = 3
+            top_reranked_docs = []
+
+            logger.debug(f"【Parent-Child调试】content_to_doc 字典 key 数量: {len(content_to_doc)}")
+            logger.debug(f"【Parent-Child调试】reordered_documents 数量: {len(reordered_documents)}")
+
+            for idx, reranked_content in enumerate(reordered_documents[:top_k_for_parent]):
+                matched = reranked_content in content_to_doc
+                logger.debug(
+                    f"【Parent-Child调试】Top-{idx+1} 匹配结果: {matched} | "
+                    f"reranked长度={len(reranked_content)} | "
+                    f"reranked前50字='{reranked_content[:50]}'"
+                )
+                if not matched:
+                    # 逐个对比找出差异
+                    for key_idx, key in enumerate(content_to_doc.keys()):
+                        if key[:50] == reranked_content[:50]:
+                            logger.debug(
+                                f"【Parent-Child调试】  前50字匹配但全文不匹配! "
+                                f"key长度={len(key)} vs reranked长度={len(reranked_content)}"
+                            )
+                            # 找第一个不同的字符位置
+                            for ci in range(min(len(key), len(reranked_content))):
+                                if key[ci] != reranked_content[ci]:
+                                    logger.debug(
+                                        f"【Parent-Child调试】  首个差异位置: {ci}, "
+                                        f"key[{ci}]='{key[ci]}' vs reranked[{ci}]='{reranked_content[ci]}'"
+                                    )
+                                    break
+                            break
+                if matched:
+                    top_reranked_docs.append(content_to_doc[reranked_content])
+
+            logger.debug(f"【Parent-Child调试】最终匹配到 {len(top_reranked_docs)} 个 doc")
+
+            parent_documents = await self._resolve_parents(top_reranked_docs or documents[:top_k_for_parent])
+            if parent_documents:
+                logger.info(f"【Parent-Child】使用 {len(parent_documents)} 个 Parent 文档送给 LLM")
+                # 用 Parent 内容替换送给 LLM 的文档
+                reordered_documents = [_format_doc(doc) for doc in parent_documents]
 
             # 如果没有检索到文档
             if not reordered_documents:

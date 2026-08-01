@@ -1,4 +1,5 @@
 collection_name: rag_collection
+parent_collection_name: rag_parents
 persist_directory: data/chromadb
 k: 3
 
@@ -9,3 +10,7 @@ allow_knowledge_file_types: ["txt", "pdf", "md", "pptx", "docx"]
 chunk_size: 200
 chunk_overlap: 20
 separators : ["\n\n", "\n", "。", "！", "？", "!", "?", " ", ""]
+
+# Parent-Child 配置
+# 超过此字符数的文档，按 ## 章节拆分为多个 Parent；低于此值则整篇作为 1 个 Parent
+parent_max_size: 5000
