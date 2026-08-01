@@ -90,8 +90,16 @@ class AsyncTextSplitter:
 
     # Markdown 二级标题分割正则
     _md_heading_split = re.compile(r'(?=^## )', re.MULTILINE)
-    # 纯文本段落分割正则：空行 或 中文编号（一、二、...）或 数字编号（1. 2. ...）
-    _txt_section_split = re.compile(r'(?:\n\s*\n)|(?=^[一二三四五六七八九十]+、)|(?=^\d+[\.\、])', re.MULTILINE)
+    # txt 标准化：识别常见段落标题模式，转为 Markdown ## 标题
+    _txt_heading_patterns = [
+        # 中文编号：一、 二、 三、 ... 十、 十一、
+        (re.compile(r'^([一二三四五六七八九十百]+、.*)$', re.MULTILINE), r'## \1'),
+        # "第X章/节/部分"格式
+        (re.compile(r'^(第[一二三四五六七八九十百\d]+[章节部分篇].*?)$', re.MULTILINE), r'## \1'),
+        # 全角数字编号：１. ２.（少见但有）
+        # 等号或短横线分隔线（===== 或 -----）→ 去掉（前面的行会被其他规则捕获）
+        (re.compile(r'^[=\-]{3,}\s*$', re.MULTILINE), ''),
+    ]
 
     def _detect_doc_type(self, doc: Document) -> str:
         """根据 metadata 中的 source 路径判断文档类型"""
@@ -156,30 +164,44 @@ class AsyncTextSplitter:
         chunks = self._merge_short_chunks(chunks)
         return chunks
 
+    def _normalize_txt_to_markdown(self, text: str) -> str:
+        """
+        将纯文本标准化为 Markdown 格式。
+        识别常见的段落标题模式（中文编号、第X章等），转为 ## 标题。
+        标准化后可统一走 _split_markdown 逻辑。
+        """
+        normalized = text
+        for pattern, replacement in self._txt_heading_patterns:
+            normalized = pattern.sub(replacement, normalized)
+
+        # 清理多余空行（标准化后可能产生连续空行）
+        normalized = re.sub(r'\n{3,}', '\n\n', normalized)
+        return normalized
+
     def _split_plain_text(self, text: str) -> list[str]:
         """
-        纯文本结构感知分块：按空行或编号段落切割。
-        适用于报告类文档（一、核心性能指标 / 二、缓存层指标 ...）
+        纯文本分块：先标准化为 Markdown，再走 _split_markdown。
+        如果标准化后没有 ## 标题（说明文档无明显结构），则按空行分段。
         """
-        sections = self._txt_section_split.split(text)
+        # 标准化为 Markdown
+        normalized = self._normalize_txt_to_markdown(text)
+        logger.info(f"【txt标准化】原文 {len(text)} 字 → 标准化后 {len(normalized)} 字")
+
+        # 如果标准化后产生了 ## 标题，走 Markdown 分块
+        if '## ' in normalized:
+            return self._split_markdown(normalized)
+
+        # 没有 ## 标题：按空行分段 → 过短合并 → 超长兜底
+        sections = re.split(r'\n\s*\n', text)
         sections = [s.strip() for s in sections if s.strip()]
 
-        # 如果没有明显段落结构，降级
         if len(sections) <= 1:
             if self.embedding_model:
                 return self._semantic_split_text_sync(text)
             return self.splitter.split_text(text)
 
-        chunks = []
-        for section in sections:
-            if len(section) <= self.max_chunk_size:
-                chunks.append(section)
-            else:
-                sub_chunks = self.splitter.split_text(section)
-                chunks.extend(sub_chunks)
-
-        # 过短块合并
-        chunks = self._merge_short_chunks(chunks)
+        chunks = self._merge_short_chunks(sections)
+        chunks = self._enforce_max_size(chunks)
         return chunks
 
     # ─── 语义分块核心逻辑 ─────────────────────────────────────────────
